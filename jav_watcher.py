@@ -62,6 +62,41 @@ LOG = logging.getLogger("jav_watcher")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 删除同步：文件消失时清理 Redis 缓存 + 封面索引
+# ─────────────────────────────────────────────────────────────────────────────
+
+def cleanup_deleted(disappeared_paths: set):
+    """文件从 PikPak 删除后，清理对应的 Redis 缓存和封面索引。"""
+    for fpath in disappeared_paths:
+        fname = os.path.basename(fpath)
+        jav_id = extract_jav_id(fname)
+        if not jav_id:
+            continue
+
+        # 清 Redis 缓存
+        try:
+            import redis
+            r = redis.Redis(host="127.0.0.1", port=6379,
+                            password=os.environ.get("REDIS_PASSWORD", ""))
+            jid_lower = jav_id.lower()
+            deleted_keys = []
+            for prefix in ["v-", "sample-", "magnet-", "bt-", "comment-"]:
+                key = f"{prefix}{jid_lower}"
+                if r.delete(key):
+                    deleted_keys.append(key)
+            if deleted_keys:
+                LOG.info(f"🗑 Redis 已清理: {', '.join(deleted_keys)}")
+        except Exception as e:
+            LOG.warning(f"Redis 清理失败 {jav_id}: {e}")
+
+        # 清封面索引
+        idx_path = os.path.join(COVER_INDEX_DIR, f"{jav_id}.jsonl")
+        if os.path.exists(idx_path):
+            os.remove(idx_path)
+            LOG.info(f"🗑 封面索引已删除: {jav_id}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 配置 / TG / 状态
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -482,6 +517,11 @@ def main():
                     if fail_count[fpath] >= MAX_RETRIES:
                         send_tg_msg(bot_token, chat_id,
                                     f"⚠ 处理失败（已放弃）: <code>{fname}</code>\n{e}")
+
+            # 检测已删除的文件，清理缓存
+            disappeared = known - current_paths
+            if disappeared:
+                cleanup_deleted(disappeared)
 
             known = (known & current_paths) | {p for p in new_paths if p in known}
             save_state(known)
