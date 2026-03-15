@@ -41,7 +41,7 @@ STABLE_CHECK_TIMES = 1         # 次：1 次即可（云盘文件瞬间完成）
 VIDEO_EXTS         = {".mp4", ".mkv", ".avi", ".mov", ".ts", ".m2ts", ".wmv", ".rmvb"}
 JUNK_NAMES         = {"manko.fun", "hhd800.com", "1pon.tv", "caribbeancom", "thz.la",
                        "nyap2p", "hjd2048", "seselah", "sexinsex"}  # 常见广告/水印文件名
-MIN_VIDEO_SIZE     = 50 * 1024 * 1024  # 50MB 以下视频跳过（广告）
+MIN_VIDEO_SIZE     = 200 * 1024 * 1024  # 200MB 以下视频跳过（广告）
 LOG_FILE           = "/var/log/jav-watcher.log"
 STATE_FILE         = os.path.expanduser("~/.jav_watcher_state.json")
 NOTIFY_CHAT_ID     = "YOUR_CHAT_ID"
