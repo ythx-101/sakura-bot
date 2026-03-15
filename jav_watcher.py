@@ -385,8 +385,35 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
         except Exception as e:
             LOG.warning(f"[①刮削] 出错（已跳过）: {e}")
 
-        # ── Step ②: 跳过重命名（PikPak 秒存自带刮削+重命名） ────────────────
-        LOG.info(f"[②整理] PikPak 会员已自动处理，跳过本地重命名")
+        # ── Step ②: 重命名 + 整理 ──────────────────────────────────────────
+        try:
+            ext = os.path.splitext(fname)[1]
+            if jav_id and meta:
+                new_fname = build_new_filename(jav_id, meta, ext)
+                new_path  = os.path.join(video_dir, new_fname)
+                base_name = os.path.splitext(new_fname)[0]
+
+                if new_fname != fname:
+                    LOG.info(f"[②整理] 重命名: {fname} → {new_fname}")
+                    os.rename(fpath, new_path)
+
+                final_path = new_path
+
+                # 封面写到挂载目录
+                if poster_path and os.path.exists(poster_path):
+                    dest_poster = os.path.join(video_dir, f"{base_name}-poster.jpg")
+                    shutil.copy2(poster_path, dest_poster)
+                    poster_path = dest_poster
+
+                # NFO 写到挂载目录
+                nfo_tmp = os.path.join(tmp_dir, f"{jav_id}.nfo")
+                if os.path.exists(nfo_tmp):
+                    dest_nfo = os.path.join(video_dir, f"{base_name}.nfo")
+                    shutil.copy2(nfo_tmp, dest_nfo)
+
+                LOG.info(f"[②整理] 完成: {new_fname}")
+        except Exception as e:
+            LOG.warning(f"[②整理] 出错（已跳过）: {e}")
 
         # ── Step ③: 封面 Embed 索引 ─────────────────────────────────────────
         try:
