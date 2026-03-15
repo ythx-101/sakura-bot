@@ -434,10 +434,6 @@ def main():
     LOG.info(f"轮询间隔: {POLL_INTERVAL}s")
     LOG.info("=" * 60)
 
-    send_tg_msg(bot_token, chat_id,
-                f"👁 JAV Watcher 已启动\n监视: {', '.join(WATCH_DIRS)}\n"
-                f"流水线: 刮削 → 重命名 → 封面索引 → 通知")
-
     known = load_state()
     if not known:
         current = scan_dirs()
