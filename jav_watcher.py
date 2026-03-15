@@ -401,6 +401,7 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
             pass
 
     LOG.info(f"▶ 处理完成: {os.path.basename(final_path)}")
+    return bool(meta)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -423,6 +424,9 @@ def main():
     LOG.info("=" * 60)
 
     known = load_state()
+    fail_count = {}          # fpath → 已失败次数
+    MAX_RETRIES = 3
+
     if not known:
         current = scan_dirs()
         known   = set(current.keys())
@@ -436,6 +440,13 @@ def main():
             new_paths     = current_paths - known
 
             for fpath in sorted(new_paths):
+                # 重试次数耗尽，放弃
+                if fail_count.get(fpath, 0) >= MAX_RETRIES:
+                    known.add(fpath)
+                    save_state(known)
+                    LOG.warning(f"重试 {MAX_RETRIES} 次仍失败，跳过: {os.path.basename(fpath)}")
+                    continue
+
                 fname = current[fpath]
                 # 如果即时处理已建索引，跳过
                 _jid = extract_jav_id(fname)
@@ -443,24 +454,36 @@ def main():
                     _idx = os.path.expanduser(f"~/.openclaw/skills/jav-skill/cover_index/{_jid}.jsonl")
                     if os.path.exists(_idx):
                         LOG.info(f"⏭ 跳过（已由即时处理完成）: {fname}")
+                        known.add(fpath)
+                        save_state(known)
                         continue
-                LOG.info(f"🆕 新文件: {fname}")
-                send_tg_msg(bot_token, chat_id,
-                            f"🆕 检测到新视频: <code>{fname}</code>\n正在处理元数据...")
-                try:
-                    stable = wait_for_stable(fpath)
-                    if not stable:
-                        LOG.warning(f"文件路径变化（PikPak可能已重命名）: {fname}")
-                        # PikPak 秒存会重命名，但我们仍可从原文件名提番号处理
-                    process_video(fpath, fname, bot_token, chat_id)
-                except Exception as e:
-                    LOG.error(f"处理新文件出错 {fname}: {e}")
-                    send_tg_msg(bot_token, chat_id,
-                                f"⚠ 处理出错: <code>{fname}</code>\n{e}")
-                known.add(fpath)
-                save_state(known)
 
-            known = (known & current_paths) | new_paths
+                is_retry = fpath in fail_count
+                if not is_retry:
+                    LOG.info(f"🆕 新文件: {fname}")
+                    send_tg_msg(bot_token, chat_id,
+                                f"🆕 检测到新视频: <code>{fname}</code>\n正在处理元数据...")
+                try:
+                    if not is_retry:
+                        stable = wait_for_stable(fpath)
+                        if not stable:
+                            LOG.warning(f"文件路径变化（PikPak可能已重命名）: {fname}")
+                    success = process_video(fpath, fname, bot_token, chat_id)
+                    if success:
+                        known.add(fpath)
+                        save_state(known)
+                        fail_count.pop(fpath, None)
+                    else:
+                        fail_count[fpath] = fail_count.get(fpath, 0) + 1
+                        LOG.warning(f"处理不完整，第 {fail_count[fpath]}/{MAX_RETRIES} 次: {fname}")
+                except Exception as e:
+                    fail_count[fpath] = fail_count.get(fpath, 0) + 1
+                    LOG.error(f"处理出错 {fname}: {e}")
+                    if fail_count[fpath] >= MAX_RETRIES:
+                        send_tg_msg(bot_token, chat_id,
+                                    f"⚠ 处理失败（已放弃）: <code>{fname}</code>\n{e}")
+
+            known = (known & current_paths) | {p for p in new_paths if p in known}
             save_state(known)
 
         except Exception as e:

@@ -801,7 +801,7 @@ class BotUtils:
 
                 # Gemini embed 索引
                 if poster_path:
-                    api_key = cfg.get("gemini_api_key", "YOUR_GEMINI_API_KEY")
+                    api_key = cfg.get("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "")
                     embed_and_index_cover(jav_id, jav_id, meta, poster_path, api_key)
 
                 # 通知
