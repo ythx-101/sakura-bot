@@ -31,9 +31,9 @@ sys.path.insert(0, SCRIPT_DIR)
 
 # ── 配置 ──────────────────────────────────────────────────────────────────────
 WATCH_DIRS = [
-    "/mnt/pikpak-mypack",
-    "/mnt/pikpak-movies",
-    "/mnt/pikpak-series",
+    "/root/pikpak-mypack",
+    "/root/pikpak-movies",
+    "/root/pikpak-series",
 ]
 POLL_INTERVAL      = 30        # 秒：轮询间隔
 STABLE_CHECK_SECS  = 2         # 秒：PikPak 秒存无需长等
