@@ -1415,10 +1415,7 @@ def handle_message(message):
         elif msg_cmd == "/weekly":
             threading.Thread(target=_handle_weekly, args=(bot_utils,)).start()
         elif msg_cmd == "/auto":
-            if msg_param:
-                threading.Thread(target=_handle_auto, args=(bot_utils, msg_param)).start()
-            else:
-                bot_utils.send_msg("用法: /auto <番号>，如 /auto SONE-758")
+            bot_utils.send_msg("⚠️ /auto 已移除，请直接搜索番号后保存到 PikPak，系统会自动处理。")
         elif msg_cmd == "/recommend":
             threading.Thread(target=_handle_recommend, args=(bot_utils,)).start()
         elif msg_cmd == "/del":
@@ -1512,96 +1509,57 @@ def _handle_clips(bot_utils, query: str):
 
 
 def _handle_weekly(bot_utils):
-    import json, subprocess, tempfile, glob
-    bot_utils.send_msg("\u26a0\ufe0f /weekly 需要视频帧索引，当前仅封面索引可用。"
-                        "\n请手动运行 jav_video_embed.py 建立帧索引后再使用。")
-    return
+    """从封面索引中检索本周新增的番号，生成周精选海报合集"""
+    import json, math
 
-    queries = ["精彩镜头", "高质量画面", "精华片段"]
-    all_results = {}
+    if not os.path.exists(COVER_INDEX_DIR):
+        bot_utils.send_msg("❌ 封面索引为空，请先保存一些视频")
+        return
 
-    for q in queries:
-        try:
-            q_emb = _get_embedding({"model":"models/gemini-embedding-2-preview",
-                                     "content":{"parts":[{"text":q}]},
-                                     "outputDimensionality":768})
-            entries = []
-            for fname in os.listdir(COVER_INDEX_DIR):
-                if fname.endswith(".jsonl"):
-                    with open(os.path.join(COVER_INDEX_DIR, fname)) as f:
-                        for line in f:
-                            if line.strip():
-                                try: entries.append(json.loads(line))
-                                except: pass
-            for e in entries:
-                if not e.get("embedding"): continue
-                score = _cosine(q_emb, e["embedding"])
-                key = (e["video_name"], round(e["timestamp"]/60))
-                if key not in all_results or score > all_results[key]["score"]:
-                    all_results[key] = {"score":score,"video":e["video"],
-                                        "video_name":e["video_name"],"timestamp":e["timestamp"]}
-        except Exception as e:
-            LOG.error(f"weekly query {q}: {e}")
+    entries = []
+    for fname in os.listdir(COVER_INDEX_DIR):
+        if fname.endswith(".jsonl"):
+            with open(os.path.join(COVER_INDEX_DIR, fname)) as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entries.append(json.loads(line))
+                        except:
+                            pass
 
-    clips = sorted(all_results.values(), key=lambda x: x["score"], reverse=True)[:12]
-    if not clips:
-        bot_utils.send_msg("❌ 检索无结果"); return
+    if not entries:
+        bot_utils.send_msg("❌ 封面索引为空")
+        return
 
-    bot_utils.send_msg(f"✂️ 找到 {len(clips)} 个精彩片段，开始提取合成...")
+    # 按文件修改时间排序，取最近的
+    entries_with_time = []
+    for e in entries:
+        idx_path = os.path.join(COVER_INDEX_DIR, f"{e.get('jav_id','unknown')}.jsonl")
+        mtime = os.path.getmtime(idx_path) if os.path.exists(idx_path) else 0
+        e["_mtime"] = mtime
+        entries_with_time.append(e)
 
-    with tempfile.TemporaryDirectory() as tmp:
-        clip_files = []
-        for i, c in enumerate(clips):
-            ts = c["timestamp"]; start = max(0, ts-3); dur = 6
-            out = os.path.join(tmp, f"{i:03d}.mp4")
-            r = subprocess.run(["ffmpeg","-y","-ss",str(start),"-i",c["video"],
-                                 "-t",str(dur),"-c","copy",out], capture_output=True)
-            if r.returncode == 0: clip_files.append(out)
+    entries_with_time.sort(key=lambda x: x["_mtime"], reverse=True)
+    recent = entries_with_time[:10]
 
-        if not clip_files:
-            bot_utils.send_msg("❌ 片段提取失败"); return
+    msg = "📋 <b>本周精选</b>\n\n"
+    for i, e in enumerate(recent, 1):
+        jav_id = e.get("jav_id", "?")
+        title = e.get("title", "")[:40]
+        stars = "、".join(e.get("stars", []))
+        tags = " | ".join(e.get("tags", [])[:4])
+        msg += f"<b>{i}.</b> <code>{jav_id}</code>"
+        if stars:
+            msg += f"  🎭 {stars}"
+        if title:
+            msg += f"\n   📝 {title}"
+        if tags:
+            msg += f"\n   🏷 {tags}"
+        msg += "\n\n"
 
-        concat = os.path.join(tmp, "list.txt")
-        with open(concat,"w") as f:
-            for p in clip_files: f.write(f"file '{p}'\n")
+    msg += f"共 {len(entries)} 部已索引 | /clips &lt;描述&gt; 搜索"
+    bot_utils.send_msg(msg)
 
-        from datetime import datetime
-        week = datetime.now().strftime("%Y_W%W")
-        output = os.path.expanduser(f"~/weekly_{week}.mp4")
-        r = subprocess.run(["ffmpeg","-y","-f","concat","-safe","0","-i",concat,
-                             "-c","copy",output], capture_output=True)
-        if r.returncode == 0:
-            size = os.path.getsize(output)/1024/1024
-            bot_utils.send_msg(f"🎉 周精选合成完成!\n📁 {output}\n📦 {size:.1f} MB\n🎬 {len(clip_files)} 个片段")
-            # 发送文件
-            try:
-                BOT.send_video(BOT_CFG.tg_chat_id, open(output,"rb"), caption=f"Weekly Highlights {week}")
-            except Exception as e:
-                bot_utils.send_msg(f"⚠️ 文件太大无法直接发送，保存在: {output}")
-        else:
-            bot_utils.send_msg(f"❌ 合成失败: {r.stderr.decode()[:200]}")
-
-
-def _handle_auto(bot_utils, jav_id: str):
-    """番号 → 磁力 → PikPak → 等待下载 → 自动索引流水线"""
-    import sys
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    try:
-        from jav_auto_pipeline import auto_pipeline
-        result = auto_pipeline(jav_id.strip().upper(), send_msg_fn=bot_utils.send_msg)
-        tags = result.get("tags", [])
-        video_path = result.get("video_path")
-        if tags and video_path:
-            fname = os.path.basename(video_path)
-            tags_str = " | ".join(tags)
-            bot_utils.send_msg(
-                f"🏷️  {jav_id.strip().upper()} 检索标签:\n{tags_str}\n"
-                f"📂 {fname}\n"
-                f"💡 /clips 搜索片段 | /recommend 看推荐"
-            )
-    except Exception as e:
-        LOG.error(f"_handle_auto error: {e}")
-        bot_utils.send_msg(f"❌ /auto 出错: {e}")
 
 
 def _handle_del(bot_utils, jav_id: str):
