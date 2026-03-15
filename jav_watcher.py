@@ -164,6 +164,9 @@ def scan_dirs() -> dict:
                     ext = os.path.splitext(fname)[1].lower()
                     if ext not in VIDEO_EXTS:
                         continue
+                    # 跳过无番号的文件（广告/水印文件通常没有合法番号）
+                    if not extract_jav_id(fname):
+                        continue
                     # 跳过广告/水印小视频
                     stem = os.path.splitext(fname)[0].lower()
                     if any(j in stem for j in JUNK_NAMES):
