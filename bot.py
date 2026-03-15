@@ -1421,6 +1421,11 @@ def handle_message(message):
                 bot_utils.send_msg("用法: /auto <番号>，如 /auto SONE-758")
         elif msg_cmd == "/recommend":
             threading.Thread(target=_handle_recommend, args=(bot_utils,)).start()
+        elif msg_cmd == "/del":
+            if msg_param:
+                threading.Thread(target=_handle_del, args=(bot_utils, msg_param.upper())).start()
+            else:
+                bot_utils.send_msg("用法: /del <番号>，如 /del DKRA-1101")
         elif msg_cmd == "/imgsearch":
             bot_utils.send_msg("📸 请直接发送一张图片，Bot 将自动以图搜片")
         else:
@@ -1597,6 +1602,42 @@ def _handle_auto(bot_utils, jav_id: str):
     except Exception as e:
         LOG.error(f"_handle_auto error: {e}")
         bot_utils.send_msg(f"❌ /auto 出错: {e}")
+
+
+def _handle_del(bot_utils, jav_id: str):
+    """立即清除指定番号的所有缓存：Redis + 封面索引 + 收藏记录"""
+    cleaned = []
+
+    # 清 Redis
+    try:
+        jid_lower = jav_id.lower()
+        for prefix in ["v-", "sample-", "magnet-", "bt-", "comment-"]:
+            key = f"{prefix}{jid_lower}"
+            if BOT_CACHE_DB.r and BOT_CACHE_DB.r.delete(key):
+                cleaned.append(key)
+    except Exception as e:
+        LOG.warning(f"/del Redis 清理失败: {e}")
+
+    # 清封面索引
+    idx_dir = os.path.expanduser("~/.openclaw/skills/jav-skill/cover_index")
+    idx_path = os.path.join(idx_dir, f"{jav_id}.jsonl")
+    if os.path.exists(idx_path):
+        os.remove(idx_path)
+        cleaned.append("封面索引")
+
+    # 清收藏记录
+    try:
+        if BOT_DB.record and jav_id.lower() in str(BOT_DB.record.get("ids", {})).lower():
+            BOT_DB.record.get("ids", {}).pop(jav_id.lower(), None)
+            BOT_DB.save()
+            cleaned.append("收藏记录")
+    except Exception:
+        pass
+
+    if cleaned:
+        bot_utils.send_msg(f"🗑 <code>{jav_id}</code> 已清除: {', '.join(cleaned)}")
+    else:
+        bot_utils.send_msg(f"🤷 <code>{jav_id}</code> 没有找到任何缓存")
 
 
 def _handle_recommend(bot_utils):
