@@ -87,8 +87,7 @@ def get_api_key(cfg):
     if not key:
         key = os.environ.get("GOOGLE_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "")
     if not key:
-        # 硬编码兜底（与 bot.py 保持一致）
-        key = "YOUR_GEMINI_API_KEY"
+        key = ""
     return key
 
 def get_video_duration(video_path: str) -> float:
@@ -120,7 +119,8 @@ def get_image_embedding(image_path: str, api_key: str) -> list:
         },
         "outputDimensionality": 3072
     }
-    r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+    r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 
@@ -130,7 +130,8 @@ def get_text_embedding(text: str, api_key: str) -> list:
         "content": {"parts": [{"text": text}]},
         "outputDimensionality": 3072
     }
-    r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+    r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 

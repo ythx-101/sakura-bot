@@ -17,7 +17,7 @@ if [ "$CURRENT" = "$LATEST" ]; then
 fi
 
 echo "$(date) [UPDATE] jvav $CURRENT → $LATEST" >> "$LOG"
-pip3 install --upgrade jvav >> "$LOG" 2>&1
+pip3 install "jvav==$LATEST" >> "$LOG" 2>&1
 
 if [ $? -eq 0 ]; then
     echo "$(date) [RESTART] 重启 bot..." >> "$LOG"

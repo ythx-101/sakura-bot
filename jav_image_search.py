@@ -24,7 +24,7 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "jav_config.yaml")
 INDEX_DIR   = os.path.expanduser("~/.openclaw/skills/jav-skill/cover_index")
 GEMINI_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2-preview:embedContent"
-DEFAULT_API_KEY  = "YOUR_GEMINI_API_KEY"
+DEFAULT_API_KEY  = ""
 
 
 def load_api_key() -> str:
@@ -47,7 +47,8 @@ def get_image_embedding(image_path: str, api_key: str) -> list:
         "content": {"parts": [{"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}]},
         "outputDimensionality": 3072,
     }
-    r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+    r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 

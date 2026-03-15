@@ -29,7 +29,7 @@ CONFIG_PATH  = os.path.join(SCRIPT_DIR, "jav_config.yaml")
 INDEX_DIR    = os.path.expanduser("~/.openclaw/skills/jav-skill/cover_index")
 HISTORY_PATH = os.path.expanduser("~/.jav_user_history.jsonl")
 GEMINI_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2-preview:embedContent"
-DEFAULT_API_KEY  = "YOUR_GEMINI_API_KEY"
+DEFAULT_API_KEY  = ""
 
 MAX_HISTORY = 200
 
@@ -52,7 +52,8 @@ def get_text_embedding(text: str, api_key: str, dim: int = 3072) -> list:
         "content": {"parts": [{"text": text}]},
         "outputDimensionality": dim,
     }
-    r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+    r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 

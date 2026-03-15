@@ -270,7 +270,8 @@ def embed_and_index_cover(video_name: str, jav_id: str, meta: dict,
             "content": {"parts": [{"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}]},
             "outputDimensionality": 3072,
         }
-        r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+        r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
         r.raise_for_status()
         embedding = r.json()["embedding"]["values"]
 
@@ -371,7 +372,7 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
                 import yaml
                 with open(os.path.join(SCRIPT_DIR, "jav_config.yaml")) as f:
                     cfg = yaml.safe_load(f) or {}
-                api_key = cfg.get("gemini_api_key", "YOUR_GEMINI_API_KEY")
+                api_key = cfg.get("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "")
                 video_name = os.path.splitext(os.path.basename(final_path))[0]
                 ok = embed_and_index_cover(video_name, jav_id, meta, poster_path, api_key)
                 if ok:

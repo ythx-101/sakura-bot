@@ -1146,6 +1146,9 @@ Magnet: <code>{bt['magnet']}</code>
 
 
 def handle_callback(call):
+    if str(call.message.chat.id).lower() != BOT_CFG.tg_chat_id.lower():
+        LOG.warning(f"Unauthorized callback from chat_id: {call.message.chat.id}")
+        return
     bot_utils = BotUtils()
     bot_utils.send_action_typing()
     LOG.info(f"Handle callback: {call.data}")
@@ -1391,13 +1394,19 @@ def handle_message(message):
 
 # ─── Gemini Embedding 视频功能 ────────────────────────────────
 
-GEMINI_KEY = "YOUR_GEMINI_API_KEY"
 GEMINI_EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2-preview:embedContent"
 COVER_INDEX_DIR = os.path.expanduser("~/.openclaw/skills/jav-skill/cover_index")
 
+def _get_gemini_key():
+    key = getattr(BOT_CFG, 'gemini_api_key', '') or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+    if not key or key == "YOUR_GEMINI_API_KEY":
+        raise ValueError("Gemini API key not configured. Set it in jav_config.yaml or GEMINI_API_KEY env var.")
+    return key
+
 def _get_embedding(payload: dict) -> list:
     import requests as req
-    r = req.post(f"{GEMINI_EMBED_URL}?key={GEMINI_KEY}", json=payload, timeout=30)
+    r = req.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                 headers={"x-goog-api-key": _get_gemini_key()})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 

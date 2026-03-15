@@ -70,7 +70,8 @@ def get_text_embedding(text: str, api_key: str) -> list:
         "content": {"parts": [{"text": text}]},
         "outputDimensionality": 3072
     }
-    r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+    r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 
@@ -87,7 +88,8 @@ def get_image_embedding(image_path: str, api_key: str) -> list:
         },
         "outputDimensionality": 3072
     }
-    r = requests.post(f"{GEMINI_EMBED_URL}?key={api_key}", json=payload, timeout=30)
+    r = requests.post(GEMINI_EMBED_URL, json=payload, timeout=30,
+                      headers={"x-goog-api-key": api_key})
     r.raise_for_status()
     return r.json()["embedding"]["values"]
 
