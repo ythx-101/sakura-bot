@@ -147,7 +147,6 @@ BOT_CMDS = {
     "weekly": "Generate weekly highlights reel",
     "auto": "Auto search + push to PikPak (番号)",
     "recommend": "Recommend clips based on search history",
-    "imgsearch": "Search by image (or just send a photo)",
 }
 MSG_HELP = f"""Just send me the movie title, keywords, or id, and I'll take care of the rest!
 
@@ -1423,8 +1422,6 @@ def handle_message(message):
                 threading.Thread(target=_handle_del, args=(bot_utils, msg_param.upper())).start()
             else:
                 bot_utils.send_msg("用法: /del <番号>，如 /del DKRA-1101")
-        elif msg_cmd == "/imgsearch":
-            bot_utils.send_msg("📸 请直接发送一张图片，Bot 将自动以图搜片")
         else:
             ids = ID_PAT.findall(msg)
             if not ids or len(ids) == 0:
@@ -1616,30 +1613,6 @@ def _handle_recommend(bot_utils):
         bot_utils.send_msg(f"❌ /recommend 出错: {e}")
 
 
-def _handle_image_search(bot_utils, message):
-    """收到图片 → 下载 → embed → 以图搜片"""
-    import sys, tempfile
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    try:
-        from jav_image_search import search_by_image, format_results
-        # 取最高分辨率图片
-        photo = message.photo[-1]
-        file_info = BOT.get_file(photo.file_id)
-        downloaded = BOT.download_file(file_info.file_path)
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            tmp.write(downloaded)
-            tmp_path = tmp.name
-        try:
-            bot_utils.send_msg("🖼️ 收到图片，正在以图搜片...")
-            results = search_by_image(tmp_path, top_n=5)
-            bot_utils.send_msg(format_results(results))
-        finally:
-            os.unlink(tmp_path)
-    except Exception as e:
-        LOG.error(f"_handle_image_search error: {e}")
-        bot_utils.send_msg(f"❌ 以图搜片出错: {e}")
-
-
 @BOT.callback_query_handler(func=lambda call: True)
 def my_callback_handler(call):
     EXECUTOR.submit(handle_callback, call)
@@ -1647,13 +1620,6 @@ def my_callback_handler(call):
 
 @BOT.message_handler(content_types=["text", "photo", "animation", "video", "document"])
 def my_message_handler(message):
-    # 收到图片且无 /xxx 命令时，走以图搜片
-    if message.content_type == "photo":
-        caption = (message.caption or "").strip().lower()
-        if not caption or not caption.startswith("/"):
-            bot_utils = BotUtils()
-            EXECUTOR.submit(_handle_image_search, bot_utils, message)
-            return
     EXECUTOR.submit(handle_message, message)
 
 

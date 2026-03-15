@@ -206,10 +206,13 @@ def wait_for_stable(fpath: str) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_jav_id(filename: str) -> str | None:
-    """从文件名提取番号（如 SONE-758、ABP-123），去掉数字前导零。"""
+    """从文件名提取番号（如 SONE-758、MFYD-090），保留至少3位数字。"""
     m = re.search(r'\b([A-Za-z]{2,6})-?(\d{2,5})\b', filename)
     if m:
-        num = m.group(2).lstrip('0') or '0'
+        num = m.group(2)
+        # 只在数字超过3位时剥离前导零（DKRA-01101→1101），3位及以下保留（090→090）
+        if len(num) > 3:
+            num = num.lstrip('0') or '0'
         return f"{m.group(1).upper()}-{num}"
     return None
 
@@ -411,6 +414,45 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
                     dest_nfo = os.path.join(video_dir, f"{base_name}.nfo")
                     shutil.copy2(nfo_tmp, dest_nfo)
 
+                # 清理同目录下的广告/垃圾文件
+                for item in os.listdir(video_dir):
+                    item_path = os.path.join(video_dir, item)
+                    if item_path == final_path:
+                        continue
+                    # 保留我们生成的 poster 和 nfo
+                    if item.endswith(("-poster.jpg", ".nfo")):
+                        continue
+                    item_stem = os.path.splitext(item)[0].lower()
+                    item_ext  = os.path.splitext(item)[1].lower()
+                    is_junk = any(j in item_stem for j in JUNK_NAMES)
+                    is_small_video = (item_ext in VIDEO_EXTS and
+                                     os.path.isfile(item_path) and
+                                     os.path.getsize(item_path) < MIN_VIDEO_SIZE)
+                    if is_junk or is_small_video:
+                        try:
+                            os.remove(item_path)
+                            LOG.info(f"[②整理] 删除垃圾文件: {item}")
+                        except Exception as e2:
+                            LOG.warning(f"[②整理] 删除失败: {item}: {e2}")
+
+                # 重命名父文件夹
+                parent_dir = video_dir
+                # 只重命名直接包含视频的子目录，不动 WATCH_DIRS 根目录
+                if parent_dir not in WATCH_DIRS:
+                    new_dir_name = sanitize_filename(f"{jav_id} {' '.join(meta.get('stars', []))} {meta.get('title', '')[:40]}")
+                    new_dir_path = os.path.join(os.path.dirname(parent_dir), new_dir_name)
+                    if new_dir_path != parent_dir and not os.path.exists(new_dir_path):
+                        try:
+                            os.rename(parent_dir, new_dir_path)
+                            LOG.info(f"[②整理] 文件夹重命名: {os.path.basename(parent_dir)} → {new_dir_name}")
+                            # 更新路径引用
+                            video_dir  = new_dir_path
+                            final_path = os.path.join(new_dir_path, os.path.basename(final_path))
+                            if poster_path:
+                                poster_path = os.path.join(new_dir_path, os.path.basename(poster_path))
+                        except Exception as e2:
+                            LOG.warning(f"[②整理] 文件夹重命名失败: {e2}")
+
                 LOG.info(f"[②整理] 完成: {new_fname}")
         except Exception as e:
             LOG.warning(f"[②整理] 出错（已跳过）: {e}")
@@ -463,7 +505,7 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
             pass
 
     LOG.info(f"▶ 处理完成: {os.path.basename(final_path)}")
-    return bool(meta)
+    return final_path if meta else None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -530,9 +572,12 @@ def main():
                         stable = wait_for_stable(fpath)
                         if not stable:
                             LOG.warning(f"文件路径变化（PikPak可能已重命名）: {fname}")
-                    success = process_video(fpath, fname, bot_token, chat_id)
-                    if success:
+                    result_path = process_video(fpath, fname, bot_token, chat_id)
+                    if result_path:
                         known.add(fpath)
+                        # 如果文件被重命名，把新路径也加入 known，避免下轮当新文件
+                        if result_path != fpath:
+                            known.add(result_path)
                         save_state(known)
                         fail_count.pop(fpath, None)
                     else:
@@ -548,7 +593,19 @@ def main():
             # 检测已删除的文件，清理缓存
             disappeared = known - current_paths
             if disappeared:
-                cleanup_deleted(disappeared)
+                # 排除因重命名导致的路径变化：如果番号在当前文件中仍存在，不算删除
+                current_jav_ids = set()
+                for p in current_paths:
+                    _j = extract_jav_id(os.path.basename(p))
+                    if _j:
+                        current_jav_ids.add(_j)
+                truly_deleted = set()
+                for p in disappeared:
+                    _j = extract_jav_id(os.path.basename(p))
+                    if _j and _j not in current_jav_ids:
+                        truly_deleted.add(p)
+                if truly_deleted:
+                    cleanup_deleted(truly_deleted)
 
             known = (known & current_paths) | {p for p in new_paths if p in known}
             save_state(known)
