@@ -36,9 +36,12 @@ WATCH_DIRS = [
     "/mnt/pikpak-series",
 ]
 POLL_INTERVAL      = 30        # 秒：轮询间隔
-STABLE_CHECK_SECS  = 10        # 秒：大小稳定判断间隔
-STABLE_CHECK_TIMES = 6         # 次：连续 N 次大小不变则认为写完
+STABLE_CHECK_SECS  = 2         # 秒：PikPak 秒存无需长等
+STABLE_CHECK_TIMES = 1         # 次：1 次即可（云盘文件瞬间完成）
 VIDEO_EXTS         = {".mp4", ".mkv", ".avi", ".mov", ".ts", ".m2ts", ".wmv", ".rmvb"}
+JUNK_NAMES         = {"manko.fun", "hhd800.com", "1pon.tv", "caribbeancom", "thz.la",
+                       "nyap2p", "hjd2048", "seselah", "sexinsex"}  # 常见广告/水印文件名
+MIN_VIDEO_SIZE     = 50 * 1024 * 1024  # 50MB 以下视频跳过（广告）
 LOG_FILE           = "/var/log/jav-watcher.log"
 STATE_FILE         = os.path.expanduser("~/.jav_watcher_state.json")
 NOTIFY_CHAT_ID     = "YOUR_CHAT_ID"
@@ -124,8 +127,19 @@ def scan_dirs() -> dict:
             for dirpath, _dirs, files in os.walk(root_dir):
                 for fname in files:
                     ext = os.path.splitext(fname)[1].lower()
-                    if ext in VIDEO_EXTS:
-                        result[os.path.join(dirpath, fname)] = fname
+                    if ext not in VIDEO_EXTS:
+                        continue
+                    # 跳过广告/水印小视频
+                    stem = os.path.splitext(fname)[0].lower()
+                    if any(j in stem for j in JUNK_NAMES):
+                        continue
+                    fpath_full = os.path.join(dirpath, fname)
+                    try:
+                        if os.path.getsize(fpath_full) < MIN_VIDEO_SIZE:
+                            continue
+                    except OSError:
+                        continue
+                    result[fpath_full] = fname
         except Exception as e:
             LOG.warning(f"扫描 {root_dir} 出错: {e}")
     return result
@@ -157,10 +171,11 @@ def wait_for_stable(fpath: str) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_jav_id(filename: str) -> str | None:
-    """从文件名提取番号（如 SONE-758、ABP-123）。"""
+    """从文件名提取番号（如 SONE-758、ABP-123），去掉数字前导零。"""
     m = re.search(r'\b([A-Za-z]{2,6})-?(\d{2,5})\b', filename)
     if m:
-        return f"{m.group(1).upper()}-{m.group(2)}"
+        num = m.group(2).lstrip('0') or '0'
+        return f"{m.group(1).upper()}-{num}"
     return None
 
 
@@ -335,36 +350,8 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
         except Exception as e:
             LOG.warning(f"[①刮削] 出错（已跳过）: {e}")
 
-        # ── Step ②: 重命名 + 整理 ──────────────────────────────────────────
-        try:
-            ext = os.path.splitext(fname)[1]
-            if jav_id and meta:
-                new_fname = build_new_filename(jav_id, meta, ext)
-                new_path  = os.path.join(video_dir, new_fname)
-                base_name = os.path.splitext(new_fname)[0]
-
-                if new_fname != fname:
-                    LOG.info(f"[②整理] 重命名: {fname} → {new_fname}")
-                    os.rename(fpath, new_path)
-                # 若文件名未变：原地不动
-
-                final_path = new_path
-
-                # 封面写到挂载目录
-                if poster_path and os.path.exists(poster_path):
-                    dest_poster = os.path.join(video_dir, f"{base_name}-poster.jpg")
-                    shutil.copy2(poster_path, dest_poster)
-                    poster_path = dest_poster
-
-                # NFO 写到挂载目录
-                nfo_tmp = os.path.join(tmp_dir, f"{jav_id}.nfo")
-                if os.path.exists(nfo_tmp):
-                    dest_nfo = os.path.join(video_dir, f"{base_name}.nfo")
-                    shutil.copy2(nfo_tmp, dest_nfo)
-
-                LOG.info(f"[②整理] 完成: {new_fname}")
-        except Exception as e:
-            LOG.warning(f"[②整理] 出错（已跳过）: {e}")
+        # ── Step ②: 跳过重命名（PikPak 秒存自带刮削+重命名） ────────────────
+        LOG.info(f"[②整理] PikPak 会员已自动处理，跳过本地重命名")
 
         # ── Step ③: 封面 Embed 索引 ─────────────────────────────────────────
         try:
@@ -384,20 +371,21 @@ def process_video(fpath: str, fname: str, bot_token: str, chat_id: str):
 
         # ── Step ④: Bot 通知 ────────────────────────────────────────────────
         try:
+            import html as _html
             stars_str = "、".join(meta.get("stars", [])) if meta else ""
             tags_str  = " | ".join(meta.get("tags", [])[:8]) if meta else ""
 
             caption = (
                 f"✅ <b>新视频整理完成</b>\n"
-                f"📌 番号：<code>{jav_id or '未识别'}</code>\n"
+                f"📌 番号：<code>{_html.escape(jav_id or '未识别')}</code>\n"
             )
             if stars_str:
-                caption += f"🎭 女优：{stars_str}\n"
+                caption += f"🎭 女优：{_html.escape(stars_str)}\n"
             if meta.get("title"):
-                caption += f"📝 标题：{meta['title'][:60]}\n"
+                caption += f"📝 标题：{_html.escape(meta['title'][:60])}\n"
             if tags_str:
-                caption += f"🏷 标签：{tags_str}\n"
-            caption += f"💡 /clips <描述> 搜封面索引"
+                caption += f"🏷 标签：{_html.escape(tags_str)}\n"
+            caption += f"💡 /clips &lt;描述&gt; 搜封面索引"
 
             if poster_path and os.path.exists(poster_path):
                 send_tg_photo(bot_token, chat_id, poster_path, caption)
@@ -449,14 +437,21 @@ def main():
 
             for fpath in sorted(new_paths):
                 fname = current[fpath]
+                # 如果即时处理已建索引，跳过
+                _jid = extract_jav_id(fname)
+                if _jid:
+                    _idx = os.path.expanduser(f"~/.openclaw/skills/jav-skill/cover_index/{_jid}.jsonl")
+                    if os.path.exists(_idx):
+                        LOG.info(f"⏭ 跳过（已由即时处理完成）: {fname}")
+                        continue
                 LOG.info(f"🆕 新文件: {fname}")
                 send_tg_msg(bot_token, chat_id,
-                            f"🆕 检测到新视频: <code>{fname}</code>\n正在等待下载完成...")
+                            f"🆕 检测到新视频: <code>{fname}</code>\n正在处理元数据...")
                 try:
                     stable = wait_for_stable(fpath)
                     if not stable:
-                        LOG.warning(f"文件消失: {fname}")
-                        continue
+                        LOG.warning(f"文件路径变化（PikPak可能已重命名）: {fname}")
+                        # PikPak 秒存会重命名，但我们仍可从原文件名提番号处理
                     process_video(fpath, fname, bot_token, chat_id)
                 except Exception as e:
                     LOG.error(f"处理新文件出错 {fname}: {e}")

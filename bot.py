@@ -756,11 +756,73 @@ class BotUtils:
         )
         if self.send_msg_to_pikpak(magnet):
             self.send_msg_success_op(op_send_magnet_to_pikpak)
+            # 立即触发元数据处理，不等 watcher
+            import threading
+            threading.Thread(target=self._instant_process, args=(id,), daemon=True).start()
         else:
             self.send_msg_fail_reason_op(
                 reason="Please verify the network or logs yourself.",
                 op=op_send_magnet_to_pikpak,
             )
+
+    def _instant_process(self, jav_id: str):
+        """Save 成功后立即刮削+封面索引+通知，不依赖 watcher/rclone"""
+        import html as _html, tempfile, shutil
+        try:
+            import sys
+            _script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else '/opt/tg-search-bot'
+            if _script_dir not in sys.path:
+                sys.path.insert(0, _script_dir)
+            from jav_watcher import step_scrape_meta, download_cover, embed_and_index_cover
+            from jav_watcher import send_tg_photo, send_tg_msg
+            import yaml
+
+            cfg_path = os.path.join(_script_dir, "jav_config.yaml")
+            with open(cfg_path) as f:
+                cfg = yaml.safe_load(f) or {}
+            bot_token = cfg.get("tg_bot_token", "")
+            chat_id   = str(cfg.get("tg_chat_id", ""))
+            LOG.info(f"即时处理开始: {jav_id}")
+
+            meta = step_scrape_meta(jav_id)
+            if not meta:
+                LOG.warning(f"即时处理: {jav_id} 刮削无结果")
+                return
+            LOG.info(f"即时处理: {jav_id} 刮削成功 - {meta.get('title','')[:30]}")
+
+            tmp_dir = tempfile.mkdtemp(prefix="jav_instant_")
+            poster_path = None
+            try:
+                # 下载封面
+                if meta.get("img"):
+                    poster_tmp = os.path.join(tmp_dir, "poster.jpg")
+                    if download_cover(meta["img"], poster_tmp):
+                        poster_path = poster_tmp
+
+                # Gemini embed 索引
+                if poster_path:
+                    api_key = cfg.get("gemini_api_key", "YOUR_GEMINI_API_KEY")
+                    embed_and_index_cover(jav_id, jav_id, meta, poster_path, api_key)
+
+                # 通知
+                stars_str = "、".join(meta.get("stars", []))
+                tags_str  = " | ".join(meta.get("tags", [])[:8])
+                caption = f"✅ <b>已保存并整理完成</b>\n📌 番号：<code>{_html.escape(jav_id)}</code>\n"
+                if stars_str:
+                    caption += f"🎭 女优：{_html.escape(stars_str)}\n"
+                if meta.get("title"):
+                    caption += f"📝 标题：{_html.escape(meta['title'][:60])}\n"
+                if tags_str:
+                    caption += f"🏷 标签：{_html.escape(tags_str)}\n"
+
+                if poster_path and os.path.exists(poster_path):
+                    send_tg_photo(bot_token, chat_id, poster_path, caption)
+                else:
+                    send_tg_msg(bot_token, chat_id, caption)
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception as e:
+            LOG.error(f"即时处理 {jav_id} 出错: {e}")
 
     def get_sample_by_id(self, id: str):
         op_get_sample = f"Get screenshots based on the code <code>{id}</code>."
@@ -971,8 +1033,8 @@ class BotUtils:
 
         # 优先调用内部 HTTP 网关（tg-user-sender），失败再走原 Pyrogram 兜底
         try:
-            # 若同网络，可用 http://tg-user-sender:8081；否则可临时用 http://localhost:18081（容器需能到宿主端口）
-            url_candidates = ["http://tg-user-sender:8081/send_to_pikpak", "http://localhost:18081/send_to_pikpak"]
+            # 若同网络，可用 http://tg-user-sender:8081；否则可临时用 http://127.0.0.1:18081（容器需能到宿主端口）
+            url_candidates = ["http://tg-user-sender:8081/send_to_pikpak", "http://127.0.0.1:18081/send_to_pikpak"]
             for u in url_candidates:
                 try:
                     import requests
