@@ -10,15 +10,14 @@ This fork adds several major features while fixing compatibility with recent DMM
 
 ### 🤖 AI Features (Gemini Embedding 2)
 - **Cover Search** — Embed cover images as vectors, search by text description
-- **Image Search** — Send a photo, find matching titles via cross-modal embedding
 - **Clip Search** (`/clips`) — Semantic video segment retrieval
 - **Smart Recommendations** (`/recommend`) — Personalized suggestions based on search history
-- **Weekly Reel** (`/weekly`) — Auto-generated highlight compilation with transitions & BGM
+- **Weekly Highlights** (`/weekly`) — Auto-generated weekly best-of poster collage from your saved collection
 
 ### 📁 PikPak Integration
 - **One-click Save** — Save magnet links to PikPak cloud storage directly from bot
-- **Auto Watcher** — Monitors PikPak mount dirs, auto-scrapes metadata, downloads covers, generates NFO, sends notifications
-- **Full Pipeline** (`/auto`) —番号 → magnet → PikPak → metadata → notify
+- **Instant Processing** — Save triggers immediate scrape + cover download + Gemini embed + notification (no delay)
+- **Auto Watcher** — Background service monitors PikPak mount dirs as fallback, filters junk/ad files
 
 ### 🔧 Fixes & Improvements
 - **DMM Compatibility Patch** — Handles DMM's layout redesign (grid index change, URL parameter migration)
@@ -37,9 +36,8 @@ This fork adds several major features while fixing compatibility with recent DMM
 | `/new` | Random latest release |
 | `/rank` | Live actress popularity ranking |
 | `/clips <query>` | Semantic clip search |
-| `/auto <番号>` | Full auto pipeline |
+| `/weekly` | Weekly highlights from saved collection |
 | `/recommend` | Personalized recommendations |
-| `/imgsearch` | Search by image (send photo) |
 | `/record` | Export collection records |
 
 ## Setup
