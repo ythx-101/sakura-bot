@@ -1,0 +1,10 @@
+jvav>=3.0.0
+pyTelegramBotAPI
+requests
+beautifulsoup4
+lxml
+redis
+Pyrogram
+TgCrypto
+Pillow
+numpy

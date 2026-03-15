@@ -1,0 +1,27 @@
+# Config with secrets
+jav_config.yaml
+
+# Session files
+*.session
+*.session-journal
+tg_session*
+
+# Cache & index
+cover_index/
+video_index/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+bot_test.log
+
+# State files
+.jav_watcher_state.json
+
+# Database
+*.db
+
+# Backups
+*.bak*
+*.backup*
