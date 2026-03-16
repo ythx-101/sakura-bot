@@ -531,8 +531,10 @@ def main():
     LOG.info("=" * 60)
 
     known = load_state()
-    fail_count = {}          # fpath → 已失败次数
-    MAX_RETRIES = 3
+    fail_count    = {}   # fpath → 已失败次数
+    gone_count    = {}   # fpath → 连续消失次数（防 rclone 抖动误删）
+    MAX_RETRIES   = 3
+    GONE_THRESHOLD = 3   # 连续消失 3 轮（~90s）才认定为真正删除
 
     if not known:
         current = scan_dirs()
@@ -595,20 +597,31 @@ def main():
 
             # 检测已删除的文件，清理缓存
             disappeared = known - current_paths
-            if disappeared:
-                # 排除因重命名导致的路径变化：如果番号在当前文件中仍存在，不算删除
-                current_jav_ids = set()
-                for p in current_paths:
-                    _j = extract_jav_id(os.path.basename(p))
-                    if _j:
-                        current_jav_ids.add(_j)
-                truly_deleted = set()
-                for p in disappeared:
-                    _j = extract_jav_id(os.path.basename(p))
-                    if _j and _j not in current_jav_ids:
-                        truly_deleted.add(p)
-                if truly_deleted:
-                    cleanup_deleted(truly_deleted)
+            current_jav_ids = set()
+            for p in current_paths:
+                _j = extract_jav_id(os.path.basename(p))
+                if _j:
+                    current_jav_ids.add(_j)
+
+            truly_deleted = set()
+            for p in disappeared:
+                _j = extract_jav_id(os.path.basename(p))
+                # 番号仍在文件系统 → 只是路径变化，不算删除
+                if _j and _j in current_jav_ids:
+                    gone_count.pop(p, None)
+                    continue
+                # 累计消失次数，达到阈值才真正删除
+                gone_count[p] = gone_count.get(p, 0) + 1
+                if gone_count[p] >= GONE_THRESHOLD:
+                    truly_deleted.add(p)
+                    gone_count.pop(p, None)
+
+            # 重新出现的文件清除消失计数
+            for p in current_paths:
+                gone_count.pop(p, None)
+
+            if truly_deleted:
+                cleanup_deleted(truly_deleted)
 
             known = (known & current_paths) | {p for p in new_paths if p in known}
             save_state(known)
