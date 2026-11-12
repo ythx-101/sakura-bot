@@ -8,3 +8,5 @@ Pyrogram
 TgCrypto
 Pillow
 numpy
+pyyaml
+langdetect

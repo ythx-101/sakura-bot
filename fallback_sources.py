@@ -4,9 +4,10 @@ JavLibrary (403) / Avgle (closed) after alternative sources.
 import random
 import jvav
 import types
+import os
 import sys
 
-sys.path.insert(0, "/opt/tg-search-bot")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dmm_patch import patched_get_nice_avs_by_star_name
 
 POPULAR_ACTRESSES = [

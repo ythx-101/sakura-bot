@@ -91,6 +91,7 @@ PATH_LOG_FILE = f"{PATH_ROOT}/log.txt"
 PATH_RECORD_FILE = f"{PATH_ROOT}/record.json"
 PATH_SESSION_FILE = f"{PATH_ROOT}/session"
 PATH_CONFIG_FILE = f"{PATH_ROOT}/config.yaml"
+os.makedirs(PATH_ROOT, exist_ok=True)
 # BASE
 LOG = Logger(path_log_file=PATH_LOG_FILE).logger
 BOT_CFG = BotConfig(PATH_CONFIG_FILE)
@@ -138,14 +139,12 @@ BOT_CMDS = {
     "ids": "View my ids",
     "nice": "Randomly get a high-rated film",
     "new": "Randomly get a latest film",
-    "rank": "Get DMM actor rankings",
+    "rank": "Get live actress popularity ranking",
     "record": "Get saved records file",
     "star": "Followed by the actor's name for searching the actor",
     "id": "Followed by the id for searching the id",
-    "embed": "Index a video file with Gemini Embedding 2 (path)",
     "clips": "Search video clips by description",
     "weekly": "Generate weekly highlights reel",
-    "auto": "Auto search + push to PikPak (番号)",
     "recommend": "Recommend clips based on search history",
 }
 MSG_HELP = f"""Just send me the movie title, keywords, or id, and I'll take care of the rest!

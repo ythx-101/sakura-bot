@@ -1,5 +1,8 @@
 # Sakura Bot Configuration
-# Copy this file to jav_config.yaml and fill in your values
+# Two locations read this format (the contents can be identical):
+#   1. ~/.tg_search_bot/config.yaml  -> read by bot.py
+#   2. jav_config.yaml in the repo dir -> read by the AI / watcher modules
+# Copy this file to both and fill in your values.
 
 # Proxy settings (set use_proxy to 1 to enable)
 use_proxy: 0
@@ -11,13 +14,18 @@ tg_api_hash: "YOUR_TG_API_HASH"
 tg_bot_token: "YOUR_BOT_TOKEN"
 tg_chat_id: "YOUR_CHAT_ID"
 
-# NSFW filter (0=allow, 1=block)
+# Redis (with docker-compose, use the REDIS_PASSWORD from compose; default: changeme_please)
+redis_host: "127.0.0.1"
+redis_port: 6379
+redis_password: ""
+
+# NSFW switch (1 = /nice and /new enabled; 0 = disabled and nsfw magnet results filtered)
 enable_nsfw: 1
 
 # PikPak Bot username (for magnet saving)
 pikpak_bot_name: "PikPak6_Bot"
 
-# Gemini API Key (for AI features: /clips, /recommend, /imgsearch)
+# Gemini API Key (for AI features: /clips, /recommend, /weekly, cover search)
 gemini_api_key: "YOUR_GEMINI_API_KEY"
 
 # PikPak mount directories (rclone FUSE mounts)

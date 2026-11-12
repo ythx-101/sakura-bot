@@ -1,0 +1,33 @@
+# Sakura Bot
+
+> A self-hosted Telegram bot for JAV (Japanese adult video) metadata lookup by ID/actress, magnet search, one-click PikPak saving, and Gemini Embedding semantic search over your own collection.
+> 自部署 Telegram 机器人：番号查询、女优搜索、磁力搜索、一键存 PikPak 网盘，并用 Gemini Embedding 对个人片库做封面/片段语义搜索与推荐。
+
+18+ / personal self-hosted use only. Metadata and links only; no content is hosted.
+
+## Features
+- ID (番号) and actress lookup; plain-text messages also work
+- Magnet search; one-click save to PikPak via a Pyrogram user session
+- Gemini Embedding 2: text search over the cover index (/clips), recommendations, weekly highlights; standalone video clip indexing scripts
+- DMM compatibility patch; JavBus/DMM fallbacks instead of JavLibrary
+
+## Commands
+/help (/start), /id <番号>, /star <name>, /stars, /ids, /del <番号>, /nice, /new, /rank, /clips <query>, /weekly, /recommend, /record
+Sending an ID like abc-123 runs the ID lookup; other text runs a magnet search.
+
+## Requirements
+- Python 3.10+, Redis, ffmpeg (AI video features only), optional rclone
+- Telegram bot token, Telegram API ID/hash, chat ID; optional Gemini API key
+
+## Config locations
+- ~/.tg_search_bot/config.yaml (read by bot.py)
+- jav_config.yaml in the repo directory (read by AI / watcher modules)
+- Template: config.yaml.example
+
+## License
+GPL-3.0. Fork of akynazh/tg-search-bot.
+
+## Links
+- [README](README.md)
+- [LICENSE](LICENSE)
+- [Upstream: akynazh/tg-search-bot](https://github.com/akynazh/tg-search-bot)
